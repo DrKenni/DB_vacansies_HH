@@ -1,16 +1,15 @@
 import psycopg2
 import pandas
-import os
-from classes.Parser_HH import Parser_HH
-from utils import config
-
-conf_file = os.path.join('files', 'database.ini')
 
 
 class DBManager:
     def __init__(self, params, name_db):
         self.params = params
         self.name_db = name_db
+        pandas.set_option('display.max_columns', None)
+        pandas.set_option('display.max_rows', None)
+        pandas.set_option('display.max_colwidth', None)
+        pandas.options.display.expand_frame_repr = False
 
     def create_db(self) -> None:
         """Создает базу данных"""
@@ -61,22 +60,77 @@ class DBManager:
 
     def get_companies_and_vacancies_count(self):
         """Получает список всех компаний и количество вакансий у каждой компании"""
-        pass
+        conn = psycopg2.connect(dbname=self.name_db, **self.params)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT company_name, COUNT(vacancy_name) as vacancies FROM vacancies
+            INNER JOIN employers ON vacancies.employer_id = employers.employer_id
+            GROUP BY company_name
+        """)
+        res = cur.fetchall()
+        df = pandas.DataFrame(res, columns=['Название компании', 'Число вакансий'])
+        print(df)
+        print('-' * 100)
+        conn.close()
 
     def get_all_vacancies(self):
         """Получает список всех вакансий с указанием названия компании,
          названия вакансии и зарплаты и ссылки на вакансию"""
-        pass
+        conn = psycopg2.connect(dbname=self.name_db, **self.params)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT company_name, vacancy_name, salary_from, salary_to, url FROM vacancies
+            INNER JOIN employers ON vacancies.employer_id = employers.employer_id
+        """)
+        res = cur.fetchall()
+        df = pandas.DataFrame(res, columns=['Компания', 'Вакансия', 'ЗП от', 'ЗП до', 'Страница на HH.ru'])
+        print(df)
+        print('-' * 100)
+        conn.close()
 
     def get_avg_salary(self):
         """Получает среднюю зарплату по вакансиям"""
-        pass
+        conn = psycopg2.connect(dbname=self.name_db, **self.params)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT COUNT(vacancy_id), AVG(salary_from)::numeric(10,0) as avg_salary 
+            FROM vacancies
+        """)
+        res = cur.fetchall()
+        df = pandas.DataFrame(res, columns=['Количество вакансий', 'Средняя зарплата'])
+        print(df)
+        print('-' * 100)
+        conn.close()
 
     def get_vacancies_with_higher_salary(self):
         """Получает список всех вакансий, у которых зарплата выше средней по всем вакансиям."""
-        pass
+        conn = psycopg2.connect(dbname=self.name_db, **self.params)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT vacancy_name, salary_from FROM vacancies
+            WHERE salary_from <> 0 AND salary_from > (SELECT AVG(salary_from) FROM vacancies)
+            ORDER BY salary_from DESC
+        """)
+        res = cur.fetchall()
+        df = pandas.DataFrame(res, columns=['Вакансия(ЗП выше среднего)', 'Зарплата'])
+        print(df)
+        print('-' * 100)
+        conn.close()
 
     def get_vacancies_with_keyword(self, keyword):
         """Получает список всех вакансий, в названии которых содержатся переданные в метод слова,
          например “python”."""
-        pass
+        conn = psycopg2.connect(dbname=self.name_db, **self.params)
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT vacancy_name, salary_from, url FROM vacancies
+            WHERE vacancy_name LIKE '%{keyword}%'
+        """)
+        res = cur.fetchall()
+        if len(res) != 0:
+            df = pandas.DataFrame(res, columns=['Вакансия', 'Зарплата', 'Страница на HH.ru'])
+            print(df)
+        else:
+            print('Результатов не найдено!')
+        print('-' * 100)
+        conn.close()
