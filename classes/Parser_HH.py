@@ -1,7 +1,7 @@
 import requests
 
 
-class Parser_HH:
+class ParserHH:
 
     def __init__(self):
         self.employers_id = []
